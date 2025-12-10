@@ -1,194 +1,216 @@
+import streamlit as st
 import folium
-from folium.plugins import BeautifyIcon
-from folium import DivIcon
+from folium.plugins import BeautifyIcon, DivIcon
+from streamlit_folium import st_folium
 import math
 import urllib.request
 import re
+import datetime
 
-# --- 1. 計算ロジック ---
-aircraft_specs = { "B737-800": 34, "B777-300ER": 38, "A350-900": 38 } # 羽田なので大型機メイン
+# --- Streamlit ページ設定 ---
+st.set_page_config(page_title="AeroSpotter", layout="wide", page_icon="✈️")
 
-def get_metar(airport_code):
-    url = f"https://tgftp.nws.noaa.gov/data/observations/metar/stations/{airport_code}.TXT"
-    try:
-        with urllib.request.urlopen(url) as response:
-            return response.read().decode('utf-8').split('\n')[1]
-    except: return None
+st.title("✈️ AeroSpotter")
+st.caption("風を読んで、最適な飛行機撮影スポットを見つけるツール")
 
-def parse_metar_full(text):
-    wind_match = re.search(r'([0-9]{3})([0-9]{2,3})KT', text)
-    wind_dir = int(wind_match.group(1)) if wind_match else 0
-    wind_spd = int(wind_match.group(2)) if wind_match else 0
-    if "CAVOK" in text:
-        vis = 9999; ceiling = 9999
-    else:
-        vis_match = re.search(r'\s([0-9]{4})\s', text)
-        vis = int(vis_match.group(1)) if vis_match else 9999
-        clouds = re.findall(r'(BKN|OVC)([0-9]{3})', text)
-        if clouds:
-            heights = [int(c[1]) * 100 for c in clouds]
-            ceiling = min(heights)
-        else:
-            ceiling = 9999
-    return wind_dir, wind_spd, vis, ceiling
+# --- ユーザー設定 (サイドバー) ---
+target_airport = st.sidebar.selectbox(
+    "空港を選択してください",
+    ("RJTT", "RJAA"),
+    format_func=lambda x: "羽田空港 (RJTT)" if x == "RJTT" else "成田空港 (RJAA)"
+)
 
-def calculate_wind_components(wind_dir, wind_speed, rwy_heading):
-    rad = math.radians(wind_dir - rwy_heading)
-    hw = wind_speed * math.cos(rad)
-    cw = wind_speed * math.sin(rad)
-    return hw, cw
+# --- 1. 共通計算エンジン ---
+aircraft_specs = { "B737": 34, "B777": 38, "A350": 38 }
 
-def get_point_at_distance(start_coord, heading_deg, distance_km):
-    R = 6378.1
-    brng = math.radians(heading_deg)
-    d = distance_km
-    lat1 = math.radians(start_coord[0])
-    lon1 = math.radians(start_coord[1])
-    lat2 = math.asin(math.sin(lat1)*math.cos(d/R) + math.cos(lat1)*math.sin(d/R)*math.cos(brng))
-    lon2 = lon1 + math.atan2(math.sin(brng)*math.sin(d/R)*math.cos(lat1), math.cos(d/R)-math.sin(lat1)*math.sin(lat2))
-    return [math.degrees(lat2), math.degrees(lon2)]
+def get_metar(code):
+    try:
+        # キャッシュ無効化などの工夫は割愛しシンプルに取得
+        url = f"https://tgftp.nws.noaa.gov/data/observations/metar/stations/{code}.TXT"
+        with urllib.request.urlopen(url) as response:
+            return response.read().decode('utf-8').split('\n')[1]
+    except: return None
 
-def get_aircraft_judgment(cw):
-    judgments = []
-    cw_abs = abs(cw)
-    for name, limit in aircraft_specs.items():
-        icon = "✅" if cw_abs <= limit else "❌"
-        judgments.append(f"{icon} {name}")
-    return "<br>".join(judgments)
+def parse_metar(text):
+    w_match = re.search(r'([0-9]{3})([0-9]{2,3})KT', text)
+    wdir = int(w_match.group(1)) if w_match else 0
+    wspd = int(w_match.group(2)) if w_match else 0
+    if "CAVOK" in text: vis = 9999; clg = 9999
+    else:
+        v_match = re.search(r'\s([0-9]{4})\s', text); vis = int(v_match.group(1)) if v_match else 9999
+        cld = re.findall(r'(BKN|OVC)([0-9]{3})', text)
+        clg = min([int(c[1])*100 for c in cld]) if cld else 9999
+    return wdir, wspd, vis, clg
 
-# --- 2. 羽田空港データ (座標修正済み) ---
-# いただいた正確な座標を変数に格納
-coord_34L = [35.536939, 139.785442] # A滑走路 南端
-coord_16R = [35.555724, 139.772081] # A滑走路 北端
-coord_34R = [35.542632, 139.803064] # C滑走路 南端
-coord_16L = [35.564966, 139.787195] # C滑走路 北端
-coord_22  = [35.567152, 139.776839] # B滑走路 北東端
-coord_04  = [35.549336, 139.761563] # B滑走路 南西端
-coord_23  = [35.540330, 139.821781] # D滑走路 北東端
-coord_05  = [35.524289, 139.803781] # D滑走路 南西端
+def calc_wind(wdir, wspd, rwy_hdg):
+    rad = math.radians(wdir - rwy_hdg)
+    return wspd * math.cos(rad), wspd * math.sin(rad)
 
-runways_geom = {
-    # 北風運用 (34L/R)
-    "RWY 34L (A:北風)": {"coords": [coord_34L, coord_16R], "heading": 337, "threshold": coord_34L},
-    "RWY 34R (C:北風)": {"coords": [coord_34R, coord_16L], "heading": 337, "threshold": coord_34R},
-    # 南風運用 (22/23) - 着陸
-    "RWY 22 (B:南風)":  {"coords": [coord_22, coord_04], "heading": 220, "threshold": coord_22},
-    "RWY 23 (D:南風)":  {"coords": [coord_23, coord_05], "heading": 230, "threshold": coord_23},
-    # 南風運用 (16L/R) - 都心ルート用（今回はデータ定義のみ）
-    "RWY 16L (C:都心)": {"coords": [coord_16L, coord_34R], "heading": 157, "threshold": coord_16L},
-    "RWY 16R (A:都心)": {"coords": [coord_16R, coord_34L], "heading": 157, "threshold": coord_16R},
+def get_dist_point(start, hdg, dist_km):
+    R = 6378.1; brng = math.radians(hdg); d = dist_km
+    lat1 = math.radians(start[0]); lon1 = math.radians(start[1])
+    lat2 = math.asin(math.sin(lat1)*math.cos(d/R) + math.cos(lat1)*math.sin(d/R)*math.cos(brng))
+    lon2 = lon1 + math.atan2(math.sin(brng)*math.sin(d/R)*math.cos(lat1), math.cos(d/R)-math.sin(lat1)*math.sin(lat2))
+    return [math.degrees(lat2), math.degrees(lon2)]
+
+def get_judgment(cw):
+    res = []
+    for n, l in aircraft_specs.items():
+        res.append(f"{'✅' if abs(cw)<=l else '❌'} {n}")
+    return "<br>".join(res)
+
+# --- 2. 空港データベース ---
+airports_db = {
+    "RJAA": {
+        "name": "成田国際空港",
+        "center": [35.770, 140.385],
+        "runways": {
+            "RWY 34L": {"coords": [[35.743484, 140.390611], [35.773845, 140.368696]], "hdg": 335, "thr": [35.743484, 140.390611]},
+            "RWY 16R": {"coords": [[35.773845, 140.368696], [35.743484, 140.390611]], "hdg": 155, "thr": [35.773845, 140.368696]},
+            "RWY 34R": {"coords": [[35.786313, 140.391765], [35.804654, 140.378529]], "hdg": 335, "thr": [35.786313, 140.391765]},
+            "RWY 16L": {"coords": [[35.804654, 140.378529], [35.786313, 140.391765]], "hdg": 155, "thr": [35.804654, 140.378529]},
+        },
+        "spots": [
+            {"name": "十余三東雲の丘", "loc": [35.802184, 140.375859], "target": ["RWY 16L"], "desc": "16L着陸機、34R離陸機"},
+            {"name": "三里塚さくらの丘", "loc": [35.741795, 140.384791], "target": ["RWY 34L"], "desc": "34Lエンド南側"},
+            {"name": "ひこうきの丘", "loc": [35.738273, 140.391372], "target": ["RWY 34L"], "desc": "34L着陸大迫力"}
+        ]
+    },
+    "RJTT": {
+        "name": "羽田空港",
+        "center": [35.545, 139.790],
+        "runways": {
+            "RWY 34L": {"coords": [[35.536939, 139.785442], [35.555724, 139.772081]], "hdg": 337, "thr": [35.536939, 139.785442]},
+            "RWY 34R": {"coords": [[35.542632, 139.803064], [35.564966, 139.787195]], "hdg": 337, "thr": [35.542632, 139.803064]},
+            "RWY 16L": {"coords": [[35.564966, 139.787195], [35.542632, 139.803064]], "hdg": 157, "thr": [35.564966, 139.787195]},
+            "RWY 16R": {"coords": [[35.555724, 139.772081], [35.536939, 139.785442]], "hdg": 157, "thr": [35.555724, 139.772081]},
+            "RWY 22":  {"coords": [[35.567152, 139.776839], [35.549336, 139.761563]], "hdg": 220, "thr": [35.567152, 139.776839]},
+            "RWY 23":  {"coords": [[35.540330, 139.821781], [35.524289, 139.803781]], "hdg": 230, "thr": [35.540330, 139.821781]},
+        },
+        "spots": [
+            {"name": "第1ターミナル", "loc": [35.548805, 139.783696], "target": ["RWY 34L", "RWY 16R"], "desc": "JAL側。富士山"},
+            {"name": "第2ターミナル", "loc": [35.551180, 139.788979], "target": ["RWY 34R", "RWY 16L", "RWY 22"], "desc": "ANA側。海"},
+            {"name": "第3ターミナル", "loc": [35.545342, 139.769760], "target": ["RWY 22", "RWY 16L", "RWY 34L"], "desc": "国際線"},
+            {"name": "京浜島つばさ公園", "loc": [35.565182, 139.765535], "target": ["RWY 22"], "desc": "B滑走路南風"},
+            {"name": "城南島海浜公園", "loc": [35.577888, 139.784126], "target": ["RWY 22", "RWY 34R"], "desc": "22着陸・34R離陸"},
+            {"name": "浮島町公園", "loc": [35.522033, 139.789022], "target": ["RWY 34L", "RWY 05"], "desc": "34Lアプローチ直下"}
+        ]
+    }
 }
 
-spots = [
-    {"name": "第1ターミナル展望デッキ", "loc": [35.548, 139.785], "target": ["RWY 34L", "RWY 16R"], "desc": "A滑走路の目の前。JAL機と富士山が見える。"},
-    {"name": "第2ターミナル展望デッキ", "loc": [35.553, 139.790], "target": ["RWY 34R", "RWY 16L", "RWY 22"], "desc": "C滑走路と海が見える。ANA機メイン。"},
-    {"name": "第3ターミナル展望デッキ", "loc": [35.544, 139.766], "target": ["RWY 22", "RWY 16L", "RWY 34L"], "desc": "国際線。A滑走路やB滑走路の着陸が見える。"},
-    {"name": "京浜島つばさ公園", "loc": [35.568, 139.793], "target": ["RWY 22"], "desc": "B滑走路(RWY22)への着陸機が目の前を通過する南風時の聖地。"},
-    {"name": "城南島海浜公園", "loc": [35.578, 139.793], "target": ["RWY 22", "RWY 34R"], "desc": "RWY22着陸や、RWY34R離陸機が頭上を旋回する。"},
-    {"name": "浮島町公園", "loc": [35.528, 139.794], "target": ["RWY 34L", "RWY 05"], "desc": "34Lへの着陸機が目の前を通る。川崎側の有名スポット。"}
-]
+# --- 3. メイン処理 ---
+data = airports_db.get(target_airport)
+metar = get_metar(target_airport)
 
-# --- 3. マップ生成 ---
-target_airport = "RJTT"
-metar_text = get_metar(target_airport)
+if data and metar:
+    wdir, wspd, vis, clg = parse_metar(metar)
+    
+    # 撮影条件
+    p_stat, p_col, p_msg = "◎ 良好", "green", "視界クリア"
+    if vis<5000 or clg<1500: p_stat, p_col, p_msg = "❌ 悪条件", "red", "視界不良/雲低"
+    elif vis<8000 or clg<3000: p_stat, p_col, p_msg = "△ 微妙", "orange", "霞/雲あり"
 
-if metar_text:
-    wind_dir, wind_spd, vis, ceiling = parse_metar_full(metar_text)
+    # サイドバーに気象情報を表示
+    st.sidebar.markdown("### 気象情報 (METAR)")
+    st.sidebar.markdown(f"**風向風速:** {wdir}° / {wspd}kt")
+    st.sidebar.markdown(f"**視程:** {vis}m")
+    st.sidebar.markdown(f"**雲底:** {'なし' if clg==9999 else f'{clg}ft'}")
+    st.sidebar.markdown(f"**撮影判定:** :{p_col}[{p_stat}]")
+    st.sidebar.caption(p_msg)
 
-    photo_status = "◎ 良好"; photo_color = "green"; photo_msg = "視界クリア。"
-    if vis < 5000 or ceiling < 1500:
-        photo_status = "❌ 悪条件"; photo_color = "red"; photo_msg = "視界不良/雲低。"
-        if ceiling < 1500: photo_msg = f"雲底 {ceiling}ft"
-    elif vis < 8000 or ceiling < 3000:
-        photo_status = "△ 微妙"; photo_color = "orange"
+    m = folium.Map(location=data["center"], zoom_start=12, tiles="CartoDB dark_matter")
+    
+    # 情報パネル (地図内オーバーレイ)
+    arot = (wdir+180)%360
+    utc = datetime.datetime.utcnow(); jst = utc + datetime.timedelta(hours=9)
+    
+    info_html = f"""
+    <div style="position:fixed; bottom:20px; right:10px; z-index:1000; background:rgba(255,255,255,0.9); padding:10px; border-radius:8px; font-family:sans-serif; width:150px; font-size:12px;">
+        <div style="text-align:center; margin-bottom:5px;"><b>{target_airport} Wind</b></div>
+        <div style="display:flex; align-items:center; justify-content:center;">
+            <div style="position:relative; width:30px; height:30px; border:2px solid #ccc; border-radius:50%; margin-right:10px;">
+                <div style="position:absolute; top:-4px; left:50%; transform:translateX(-50%); font-size:8px;">N</div>
+                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate({arot}deg); color:#00bfff; font-size:16px;">⬆</div>
+            </div>
+            <div>{wdir}°<br>{wspd}kt</div>
+        </div>
+    </div>"""
+    m.get_root().html.add_child(folium.Element(info_html))
 
-    # 羽田全体が見えるようにズームと中心位置を調整
-    m = folium.Map(location=[35.545, 139.790], zoom_start=12, tiles="CartoDB dark_matter")
-    arrow_rotation = (wind_dir + 180) % 360
+    # --- 運用判定ロジック分岐 ---
+    active_rwys = []
+    
+    # A. 成田のロジック (風のみ)
+    if target_airport == "RJAA":
+        for name, rwy in data["runways"].items():
+            hw, cw = calc_wind(wdir, wspd, rwy["hdg"])
+            if hw >= 0: # 向かい風ならOK
+                active_rwys.append(name[:7]) # "RWY 34L"
 
-    wind_info = f"""
-    <div style="position: fixed; bottom: 30px; right: 10px; z-index: 1000; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 12px; font-family: sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 220px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="font-weight: bold; font-size: 1.1em;">AeroSpotter</div>
-            <div style="background: #333; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8em;">RJTT</div>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: space-around; background: #f0f0f0; border-radius: 8px; padding: 10px;">
-            <div style="position: relative; width: 50px; height: 50px; border: 2px solid #ccc; border-radius: 50%; background: white;">
-                <div style="position: absolute; top: -5px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: bold; color: #555;">N</div>
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate({arrow_rotation}deg); font-size: 24px; color: #00bfff;">⬆</div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-size: 1.5em; font-weight: bold;">{wind_dir}°</div>
-                <div style="font-size: 1.1em;">{wind_spd} kt</div>
-            </div>
-        </div>
-        <div style="margin-top: 10px; font-size: 0.9em; color: #555;">
-            <div>Vis: <b>{vis}m</b> / Clg: <b>{"-" if ceiling==9999 else f"{ceiling}ft"}</b></div>
-        </div>
-        <hr style="margin: 8px 0;">
-        <div style="text-align: center;">
-            <b style="color:{photo_color}; font-size: 1.2em;">判定: {photo_status}</b>
-            <div style="font-size: 0.8em; color: #666; margin-top: 4px;">{photo_msg}</div>
-        </div>
-    </div>
-    """
-    m.get_root().html.add_child(folium.Element(wind_info))
+    # B. 羽田のロジック (風 + 時間)
+    elif target_airport == "RJTT":
+        hour = jst.hour
+        is_north = not (90 <= wdir <= 270) # 簡易的な北風判定
+        is_city = (15 <= hour < 19) # 都心ルート時間帯
+        
+        mode_text = "北風運用" if is_north else ("南風(都心)" if is_city else "南風(基本)")
+        st.sidebar.info(f"現在のモード: **{mode_text}**")
 
-    active_runways = []
+        if is_north:
+            active_rwys = ["RWY 34L", "RWY 34R"]
+        else: # 南風
+            if is_city: active_rwys = ["RWY 16L", "RWY 16R"]
+            else:       active_rwys = ["RWY 22", "RWY 23"]
 
-    # 簡易的な北風/南風判定（※実際は時間帯や運用モードで複雑ですが、まずは風向ベースで）
-    is_north_ops = True
-    if 90 <= wind_dir <= 270:
-        is_north_ops = False
+    # --- 描画ループ ---
+    for name, rwy in data["runways"].items():
+        hw, cw = calc_wind(wdir, wspd, rwy["hdg"])
+        
+        # 判定: active_rwysに含まれているか？
+        is_active = False
+        for a in active_rwys:
+            if a in name: is_active = True
+        
+        # 追い風チェック
+        if is_active and hw < -5: is_active = False 
 
-    for name, data in runways_geom.items():
-        hw, cw = calculate_wind_components(wind_dir, wind_spd, data["heading"])
+        col, wgt, op = "gray", 3, 0.5
+        status = "Standby"
+        
+        if is_active:
+            col, wgt, op = "#00ff00", 8, 0.9
+            status = "Active"
+            
+            # 進入ライン & アイコン
+            app_hdg = rwy["hdg"] + 180
+            fp = get_dist_point(rwy["thr"], app_hdg, 10.0)
+            folium.PolyLine([rwy["thr"], fp], color="cyan", weight=2, dash_array='10,10', opacity=0.7).add_to(m)
+            
+            p3 = get_dist_point(rwy["thr"], app_hdg, 3.0)
+            folium.Marker(p3, icon=DivIcon(html='<div style="font-size:9pt; color:cyan;">▼300m</div>')).add_to(m)
+            
+            ip = get_dist_point(rwy["thr"], app_hdg, 0.5)
+            rot = rwy["hdg"] - 90
+            folium.Marker(ip, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="#00ff00", text_color="#00ff00", rotation=rot)).add_to(m)
 
-        # 運用フィルター（都心ルートRWY16系は一旦除外してシンプルに）
-        is_active = False
-        if is_north_ops and ("RWY 34" in name):
-            is_active = True
-        elif not is_north_ops and ("RWY 22" in name or "RWY 23" in name):
-            is_active = True
+        pop = f"<b>{name}</b><br>{status}<br>Head:{hw:.1f}kt / Cross:{abs(cw):.1f}kt<br><hr>{get_judgment(cw)}"
+        folium.PolyLine(rwy["coords"], color=col, weight=wgt, opacity=op, popup=folium.Popup(pop, max_width=250)).add_to(m)
 
-        color = "gray"; weight = 3; opacity = 0.5; status = "Standby"
+    # --- スポット描画 ---
+    for s in data["spots"]:
+        icol, txt = "blue", s["name"]
+        hit = False
+        for t in s["target"]:
+            for a in active_rwys:
+                if t in a: hit = True
+        if hit:
+            icol = "red"; txt += f"<br><b>★チャンス！</b><br>{s['desc']}"
+        else:
+            txt += f"<br>{s['desc']}"
+        folium.Marker(s["loc"], popup=folium.Popup(txt, max_width=200), icon=folium.Icon(color=icol, icon="camera")).add_to(m)
 
-        if is_active:
-            if hw < -5:
-                 color = "#ff3333"; status = "❌使用不可(追い風)"
-            else:
-                color = "#00ff00"; weight = 8; opacity = 0.9; status = "✅運用中(Active)"
-                active_runways.append(name[:6])
-
-                # 進入ライン
-                approach_heading = data["heading"] + 180
-                far_point = get_point_at_distance(data["threshold"], approach_heading, 10.0)
-                folium.PolyLine(locations=[data["threshold"], far_point], color="cyan", weight=2, dash_array='10, 10', opacity=0.7).add_to(m)
-
-                p_3km = get_point_at_distance(data["threshold"], approach_heading, 3.0)
-                folium.Marker(location=p_3km, icon=DivIcon(html=f'<div style="font-size: 9pt; color: cyan; white-space: nowrap;">▼300m</div>')).add_to(m)
-
-                start_icon_pt = get_point_at_distance(data["threshold"], approach_heading, 0.5)
-                icon_rotation = data["heading"] - 90
-                folium.Marker(location=start_icon_pt, popup=f"App: {name}", icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="#00ff00", text_color="#00ff00", rotation=icon_rotation, inner_icon_style="font-size:24px;")).add_to(m)
-
-        popup_html = f"<b>{name}</b><br>{status}<br>Head: {hw:.1f}kt / Cross: {abs(cw):.1f}kt<br><hr>{get_aircraft_judgment(cw)}"
-        folium.PolyLine(locations=data["coords"], color=color, weight=weight, opacity=opacity, popup=folium.Popup(popup html, max_width=250)).add_to(m)
-
-    for spot in spots:
-        icon_color = "blue"; popup_text = spot['name']; is_best_spot = False
-        for t in spot["target"]:
-            for active in active_runways:
-                if t in active: is_best_spot = True
-        if is_best_spot:
-            icon_color = "red"; popup_text += f"<br><b>★チャンス！</b><br>{spot['desc']}"
-        else:
-            popup_text += f"<br>{spot['desc']}"
-        folium.Marker(location=spot["loc"], popup=folium.Popup(popup_text, max_width=200), icon=folium.Icon(color=icon_color, icon="camera")).add_to(m)
-
-    output_file = "haneda_map_v3.html"
-    m.save(output_file)
-    display(m)
+    # Streamlitで地図を表示
+    st_folium(m, width=None, height=500)
 
 else:
-    print("データ取得エラー")
+    st.error("気象データの取得に失敗しました。時間をおいて再読み込みしてください。")
