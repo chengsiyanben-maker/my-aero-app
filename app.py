@@ -299,7 +299,7 @@ if data and metar:
         folium.Marker(s["loc"], popup=folium.Popup(txt, max_width=200), icon=folium.Icon(color=icol, icon="camera")).add_to(m)
 
     arot = (wdir+180)%360
-    info_html = f\"""
+    info_html = f"""
     <div style="position:fixed; bottom:20px; right:10px; z-index:1000; background:rgba(255,255,255,0.9); padding:10px; border-radius:8px; font-family:sans-serif; width:150px; font-size:12px;">
         <div style="text-align:center; margin-bottom:5px;"><b>{target_airport} Wind</b></div>
         <div style="display:flex; align-items:center; justify-content:center;">
@@ -314,7 +314,7 @@ if data and metar:
              <span style="color:orange;">──</span> 離陸ルート<br>
              <span style="color:orange;">☀</span> 太陽の方向
         </div>
-    </div>\"""
+    </div>"""
     m.get_root().html.add_child(folium.Element(info_html))
 
     st_folium(m, width=None, height=500)
