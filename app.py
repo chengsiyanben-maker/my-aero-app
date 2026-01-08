@@ -30,57 +30,7 @@ def get_metar(code):
         with urllib.request.urlopen(url) as response:
             return response.read().decode('utf-8').split('\n')[1]
     except: return None
-
-def parse_metar(text):
-    w_match = re.search(r'([0-9]{3})([0-9]{2,3})KT', text)
-    wdir = int(w_match.group(1)) if w_match else 0
-    wspd = int(w_match.group(2)) if w_match else 0
-    if "CAVOK" in text: vis = 9999; clg = 9999
-    else:
-        v_match = re.search(r'\s([0-9]{4})\s', text); vis = int(v_match.group(1)) if v_match else 9999
-        cld = re.findall(r'(BKN|OVC)([0-9]{3})', text)
-        clg = min([int(c[1])*100 for c in cld]) if cld else 9999
-    return wdir, wspd, vis, clg
-
-def calc_wind(wdir, wspd, rwy_hdg):
-    rad = math.radians(wdir - rwy_hdg)
-    return wspd * math.cos(rad), wspd * math.sin(rad)
-
-def get_dist_point(start, hdg, dist_km):
-    R = 6378.1; brng = math.radians(hdg); d = dist_km
-    lat1 = math.radians(start[0]); lon1 = math.radians(start[1])
-    lat2 = math.asin(math.sin(lat1)*math.cos(d/R) + math.cos(lat1)*math.sin(d/R)*math.cos(brng))
-    lon2 = lon1 + math.atan2(math.sin(brng)*math.sin(d/R)*math.cos(lat1), math.cos(d/R)-math.sin(lat1)*math.sin(lat2))
-    return [math.degrees(lat2), math.degrees(lon2)]
-
-def get_judgment(cw):
-    res = []
-    for n, l in aircraft_specs.items():
-        res.append(f"{'✅' if abs(cw)<=l else '❌'} {n}")
-    return "<br>".join(res)
-
-# --- 太陽位置 ---
-def get_sun_azimuth(lat, lon, date_jst):
-    date_utc = date_jst - datetime.timedelta(hours=9)
-    day_of_year = date_utc.timetuple().tm_yday
-    B = 360/365 * (day_of_year - 81) * math.pi / 180
-    eot = 9.87 * math.sin(2*B) - 7.53 * math.cos(B) - 1.5 * math.sin(B)
-    time_offset = (lon - 135) * 4 
-    solar_time_minutes = (date_jst.hour * 60 + date_jst.minute) + eot + time_offset
-    hour_angle = (solar_time_minutes / 4 - 180) 
-    declination = 23.45 * math.sin(360/365 * (day_of_year - 81) * math.pi / 180) * math.pi / 180
-    lat_rad = math.radians(lat)
-    dec_rad = declination
-    ha_rad = math.radians(hour_angle)
-    elevation = math.asin(math.sin(lat_rad)*math.sin(dec_rad) + math.cos(lat_rad)*math.cos(dec_rad)*math.cos(ha_rad))
-    azimuth_cos = (math.sin(dec_rad) - math.sin(lat_rad)*math.sin(elevation)) / (math.cos(lat_rad)*math.cos(elevation))
-    azimuth_cos = max(-1, min(1, azimuth_cos))
-    azimuth_rad = math.acos(azimuth_cos)
-    azimuth_deg = math.degrees(azimuth_rad)
-    if hour_angle > 0: azimuth_deg = 360 - azimuth_deg
-    return azimuth_deg
-
-# --- 2. 空港データベース ---
+# --- 2. 空港データベース (全滑走路ルート対応版) ---
 airports_db = {
     "RJAA": {
         "name": "成田国際空港",
@@ -92,14 +42,64 @@ airports_db = {
             "RWY 16L": {"coords": [[35.804654, 140.378529], [35.786313, 140.391765]], "hdg": 155, "thr": [35.804654, 140.378529], "dep_end": [35.786313, 140.391765], "desc_app": "霞ヶ浦・香取方面から"},
         },
         "custom_routes": {
-            "RWY 34L_APP": [[35.60, 140.50], [35.68, 140.45], [35.743484, 140.390611]],
-            "RWY 34R_APP": [[35.62, 140.52], [35.70, 140.47], [35.786313, 140.391765]],
-            "RWY 16R_APP": [[35.92, 140.28], [35.85, 140.33], [35.773845, 140.368696]],
-            "RWY 16L_APP": [[35.95, 140.31], [35.88, 140.35], [35.804654, 140.378529]],
-            "RWY 34L_DEP": [[35.773845, 140.368696], [35.82, 140.33], [35.85, 140.25]],
-            "RWY 34R_DEP": [[35.804654, 140.378529], [35.85, 140.34], [35.90, 140.30]],
-            "RWY 16R_DEP": [[35.743484, 140.390611], [35.70, 140.42], [35.65, 140.50]],
-            "RWY 16L_DEP": [[35.786313, 140.391765], [35.74, 140.43], [35.68, 140.52]],
+            # --- RJAA APP (着陸) ---
+            # 九十九里浜の海岸線付近から直線的に入る
+            "RWY 34L_APP": [[35.55, 140.48], [35.65, 140.43], [35.743484, 140.390611]],
+            "RWY 34R_APP": [[35.58, 140.52], [35.68, 140.46], [35.786313, 140.391765]],
+            # 霞ヶ浦上空から
+            "RWY 16R_APP": [[35.95, 140.25], [35.85, 140.32], [35.773845, 140.368696]],
+            "RWY 16L_APP": [[35.98, 140.28], [35.88, 140.34], [35.804654, 140.378529]],
+            
+            # --- RJAA DEP (離陸) ---
+            # 離陸後は太平洋側へ
+            "RWY 34L_DEP": [[35.773845, 140.368696], [35.85, 140.30], [35.90, 140.25]],
+            "RWY 34R_DEP": [[35.804654, 140.378529], [35.88, 140.32], [35.95, 140.25]],
+            "RWY 16R_DEP": [[35.743484, 140.390611], [35.65, 140.45], [35.55, 140.55]],
+            "RWY 16L_DEP": [[35.786313, 140.391765], [35.70, 140.45], [35.60, 140.55]],
+        },
+        "spots": [
+            {"name": "十余三東雲の丘", "loc": [35.802184, 140.375859], "target": ["RWY 16L"], "desc": "16L着陸機、34R離陸機"},
+            {"name": "三里塚さくらの丘", "loc": [35.741795, 140.384791], "target": ["RWY 34L"], "desc": "34Lエンド南側"},
+            {"name": "ひこうきの丘", "loc": [35.738273, 140.391372], "target": ["RWY 34L"], "desc": "34L着陸大迫力"}
+        ]
+    },
+    "RJTT": {
+        "name": "羽田空港",
+        "center": [35.545, 139.790],
+        "runways": {
+            "RWY 34L": {"coords": [[35.536939, 139.785442], [35.555724, 139.772081]], "hdg": 337, "thr": [35.536939, 139.785442], "dep_end": [35.555724, 139.772081], "desc_app": "木更津・東京湾方面から"},
+            "RWY 34R": {"coords": [[35.542632, 139.803064], [35.564966, 139.787195]], "hdg": 337, "thr": [35.542632, 139.803064], "dep_end": [35.564966, 139.787195], "desc_app": "北米，ハワイ，北日本（主に新千歳）からの到着便，長距離国際線（北米，ヨーロッパ），北日本（主に新千歳）などへの出発便"},
+            "RWY 16L": {"coords": [[35.564966, 139.787195], [35.542632, 139.803064]], "hdg": 157, "thr": [35.564966, 139.787195], "dep_end": [35.542632, 139.803064], "desc_app": "埼玉・都心上空(荒川沿い)から"},
+            "RWY 16R": {"coords": [[35.555724, 139.772081], [35.536939, 139.785442]], "hdg": 157, "thr": [35.555724, 139.772081], "dep_end": [35.536939, 139.785442], "desc_app": "埼玉・都心上空(新宿/渋谷)から"},
+            "RWY 22":  {"coords": [[35.567152, 139.776839], [35.549336, 139.761563]], "hdg": 220, "thr": [35.567152, 139.776839], "dep_end": [35.549336, 139.761563], "desc_app": "千葉市・東京湾方面から"},
+            "RWY 23":  {"coords": [[35.540330, 139.821781], [35.524289, 139.803781]], "hdg": 230, "thr": [35.540330, 139.821781], "dep_end": [35.524289, 139.803781], "desc_app": "木更津・東京湾方面から"},
+            "RWY 05":  {"coords": [[35.524289, 139.803781], [35.540330, 139.821781]], "hdg": 50,  "thr": [35.524289, 139.803781], "dep_end": [35.540330, 139.821781], "desc_app": "多摩川河口方面から(離陸専用)"}, 
+            "RWY 04":  {"coords": [[35.549336, 139.761563], [35.567152, 139.776839]], "hdg": 40,  "thr": [35.549336, 139.761563], "dep_end": [35.567152, 139.776839], "desc_app": "多摩川方面から(使用頻度低)"}, 
+        },
+        "custom_routes": {
+            # --- RJTT APP (着陸) ---
+            # 南風都心ルート (RNAV) - 埼玉県から南下
+            "RWY 16L_APP": [[35.85, 139.65], [35.75, 139.68], [35.69, 139.71], [35.62, 139.74], [35.564966, 139.787195]],
+            "RWY 16R_APP": [[35.85, 139.63], [35.75, 139.66], [35.69, 139.69], [35.62, 139.72], [35.555724, 139.772081]],
+            
+            # 北風運用 (東京湾アプローチ: 海ほたる・木更津沖を経由)
+            "RWY 34L_APP": [[35.30, 140.00], [35.40, 139.95], [35.47, 139.88], [35.536939, 139.785442]],
+            "RWY 34R_APP": [[35.30, 140.02], [35.40, 139.97], [35.47, 139.90], [35.542632, 139.803064]],
+            
+            # 南風運用 (LDA W / ILS)
+            # RWY 22 (LDA W): 千葉市方面から東京湾沿いに進み、ファイナルで左旋回
+            "RWY 22_APP": [[35.60, 140.10], [35.62, 140.00], [35.63, 139.90], [35.60, 139.82], [35.567152, 139.776839]],
+            # RWY 23: 君津・木更津方面から
+            "RWY 23_APP": [[35.40, 140.00], [35.48, 139.90], [35.540330, 139.821781]],
+
+            # --- RJTT DEP (離陸) ---
+            # D滑走路 右旋回 (RWY 05 Departure) - 離陸後すぐに右へ急旋回
+            "RWY 05_DEP": [[35.540330, 139.821781], [35.543, 139.84], [35.530, 139.88], [35.50, 139.95]],
+            # C滑走路 北風離陸 (RWY 34R Departure) - 右旋回して東へ
+            "RWY 34R_DEP": [[35.564966, 139.787195], [35.60, 139.80], [35.60, 139.90], [35.55, 140.00]],
+            # 南風都心運用時の離陸 (RWY 16L/R Departure) - 南へ抜けて三浦半島沖へ
+            "RWY 16R_DEP": [[35.536939, 139.785442], [35.50, 139.80], [35.40, 139.85]],
+            "RWY 16L_DEP": [[35.542632, 139.803064], [35.50, 139.82], [35.40, 139.87]],
         },
         "spots": [
             {"name": "十余三東雲の丘", "loc": [35.802184, 140.375859], "target": ["RWY 16L"], "desc": "16L着陸機、34R離陸機"},
