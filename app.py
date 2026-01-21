@@ -95,6 +95,7 @@ airports_db = {
             "RWY 34R_APP": [[35.58, 140.52], [35.68, 140.46], [35.786313, 140.391765]],
             "RWY 16R_APP": [[35.95, 140.25], [35.85, 140.32], [35.773845, 140.368696]],
             "RWY 16L_APP": [[35.98, 140.28], [35.88, 140.34], [35.804654, 140.378529]],
+            
             "RWY 34L_DEP": [[35.773845, 140.368696], [35.85, 140.30], [35.90, 140.25]],
             "RWY 34R_DEP": [[35.804654, 140.378529], [35.88, 140.32], [35.95, 140.25]],
             "RWY 16R_DEP": [[35.743484, 140.390611], [35.65, 140.45], [35.55, 140.55]],
@@ -110,78 +111,110 @@ airports_db = {
         "name": "羽田空港",
         "center": [35.545, 139.790],
         "runways": {
-            "RWY 34L": {"coords": [[35.536939, 139.785442], [35.555724, 139.772081]], "hdg": 337, "thr": [35.536939, 139.785442], "dep_end": [35.555724, 139.772081], "desc_app": "木更津・東京湾方面から"},
-            "RWY 34R": {"coords": [[35.542632, 139.803064], [35.564966, 139.787195]], "hdg": 337, "thr": [35.542632, 139.803064], "dep_end": [35.564966, 139.787195], "desc_app": "北米，ハワイ，北日本からの到着便、長距離国際線・北日本への出発便"},
-            "RWY 16L": {"coords": [[35.564966, 139.787195], [35.542632, 139.803064]], "hdg": 157, "thr": [35.564966, 139.787195], "dep_end": [35.542632, 139.803064], "desc_app": "埼玉・都心上空(荒川沿い)から"},
-            "RWY 16R": {"coords": [[35.555724, 139.772081], [35.536939, 139.785442]], "hdg": 157, "thr": [35.555724, 139.772081], "dep_end": [35.536939, 139.785442], "desc_app": "埼玉・都心上空(新宿/渋谷)から"},
-            "RWY 22":  {"coords": [[35.567152, 139.776839], [35.549336, 139.761563]], "hdg": 220, "thr": [35.567152, 139.776839], "dep_end": [35.549336, 139.761563], "desc_app": "千葉市・東京湾方面から"},
-            "RWY 23":  {"coords": [[35.540330, 139.821781], [35.524289, 139.803781]], "hdg": 230, "thr": [35.540330, 139.821781], "dep_end": [35.524289, 139.803781], "desc_app": "木更津・東京湾方面から"},
-            "RWY 05":  {"coords": [[35.524289, 139.803781], [35.540330, 139.821781]], "hdg": 50,  "thr": [35.524289, 139.803781], "dep_end": [35.540330, 139.821781], "desc_app": "多摩川河口方面から(離陸専用)"}, 
-            "RWY 04":  {"coords": [[35.549336, 139.761563], [35.567152, 139.776839]], "hdg": 40,  "thr": [35.549336, 139.761563], "dep_end": [35.567152, 139.776839], "desc_app": "多摩川方面から(使用頻度低)"}, 
+            "RWY 34L": {"coords": [[35.536939, 139.785442], [35.555724, 139.772081]], "hdg": 337, "thr": [35.536939, 139.785442], "dep_end": [35.555724, 139.772081], "desc_app": "木更津・東京湾方面から", "desc_dep": "北・西日本方面へ"},
+            "RWY 34R": {"coords": [[35.542632, 139.803064], [35.564966, 139.787195]], "hdg": 337, "thr": [35.542632, 139.803064], "dep_end": [35.564966, 139.787195], "desc_app": "北米，ハワイ，北日本からの到着便", "desc_dep": "長距離国際線・北日本への出発便"},
+            "RWY 16L": {"coords": [[35.564966, 139.787195], [35.542632, 139.803064]], "hdg": 157, "thr": [35.564966, 139.787195], "dep_end": [35.542632, 139.803064], "desc_app": "埼玉・都心上空(荒川沿い)から", "desc_dep": "長距離国際線・大型機（南へ）"},
+            "RWY 16R": {"coords": [[35.555724, 139.772081], [35.536939, 139.785442]], "hdg": 157, "thr": [35.555724, 139.772081], "dep_end": [35.536939, 139.785442], "desc_app": "埼玉・都心上空(新宿/渋谷)から", "desc_dep": "北日本・国内線（左旋回して北へ）"},
+            "RWY 22":  {"coords": [[35.567152, 139.776839], [35.549336, 139.761563]], "hdg": 220, "thr": [35.567152, 139.776839], "dep_end": [35.549336, 139.761563], "desc_app": "千葉市・東京湾方面から", "desc_dep": "西日本・南西方面へ（右旋回）"},
+            "RWY 23":  {"coords": [[35.540330, 139.821781], [35.524289, 139.803781]], "hdg": 230, "thr": [35.540330, 139.821781], "dep_end": [35.524289, 139.803781], "desc_app": "木更津・東京湾方面から", "desc_dep": "使用頻度低"},
+            "RWY 05":  {"coords": [[35.524289, 139.803781], [35.540330, 139.821781]], "hdg": 50,  "thr": [35.524289, 139.803781], "dep_end": [35.540330, 139.821781], "desc_app": "多摩川河口方面から(離陸専用)", "desc_dep": "多くの出発便（右旋回）"}, 
+            "RWY 04":  {"coords": [[35.549336, 139.761563], [35.567152, 139.776839]], "hdg": 40,  "thr": [35.549336, 139.761563], "dep_end": [35.567152, 139.776839], "desc_app": "多摩川方面から(使用頻度低)", "desc_dep": "使用頻度低"}, 
         },
         "custom_routes": {
             # --- RJTT APP (着陸) ---
-            
-            # RWY 16L (RNP): SANDY -> LYCEE -> LAUDA -> RWY 16L
+            # 1. RWY 16L (RNP): SANDY -> LYCEE -> LAUDA -> RWY 16L
             "RWY 16L_APP": [
                 [35.821528, 139.734111], # SANDY (IAF)
                 [35.748367, 139.682611], # LYCEE (IF)
                 [35.695781, 139.694181], # LAUDA (FAF)
                 [35.564966, 139.787195]  # THR
             ],
-            # RWY 16R (ILS/LOC): SANDY -> LORRY -> LYCOS -> RWY 16R
+            # 2. RWY 16R (ILS/LOC): SANDY -> LORRY -> LYCOS -> RWY 16R
             "RWY 16R_APP": [
                 [35.821528, 139.734111], # SANDY
+                [35.821417, 139.684944], # LABAN
+                [35.821278, 139.635000], # LINEN
                 [35.778472, 139.635194], # LORRY (IF)
                 [35.735175, 139.666086], # LYCOS (FAF)
                 [35.555724, 139.772081]  # THR
             ],
             
-            # RWY 34L (LOC Y / GLS): KAIHO -> ALLIE -> AZURE
+            # 3. RWY 34L (LOC Y / GLS): KAIHO -> AVION -> ALLIE -> AZURE
             "RWY 34L_APP": [
-                [35.316056, 139.778444], # KAIHO (IAF)
+                [35.316064, 139.778453], # KAIHO (IAF)
+                [35.410344, 139.851528], # AVION
                 [35.443736, 139.851478], # ALLIE (IF)
-                [35.472633, 139.830467], # AZURE (FAF)
+                [35.472633, 139.831022], # AZURE (FAF)
                 [35.536939, 139.785442]  # THR
             ],
-            # RWY 34R (ILS Z): CREAM -> CAMEL -> CACAO
+            # RWY 34L (LOC Z - 予備): ARLON -> APOLO -> ACTOR
+            "RWY 34L_Z_APP": [
+                [35.257028, 139.983278], # ARLON
+                [35.350000, 139.923333], # APOLO (Approx)
+                [35.459444, 139.840356], # ACTOR (FAF)
+                [35.536939, 139.785442]  # THR
+            ],
+
+            # 4. RWY 34R (ILS Z): CREAM -> CAMEL -> CACAO
             "RWY 34R_APP": [
                 [35.295389, 140.103444], # CREAM (IAF)
                 [35.288389, 139.982722], # CAMEL (IF)
                 [35.370225, 139.925039], # CACAO (FAF)
                 [35.542632, 139.803064]  # THR
             ],
+            # RWY 34R (GLS): KAIHO -> CURVY -> CECIL -> CREST
+            "RWY 34R_GLS_APP": [
+                [35.316064, 139.778453], # KAIHO (IAF)
+                [35.416322, 139.868917], # CURVY
+                [35.449717, 139.868875], # CECIL (IF)
+                [35.478617, 139.848422], # CREST (FAF)
+                [35.542632, 139.803064]  # THR
+            ],
             
-            # RWY 22 (LDA Z): BACON -> BEAST -> BONDO
+            # 5. RWY 22 (LDA Z): BACON -> BIBLO -> BEAST -> BONDO
             "RWY 22_APP": [
                 [35.531944, 140.204194], # BACON (IAF)
+                [35.585778, 140.185583], # BIBLO
                 [35.605639, 140.142917], # BEAST (IF)
                 [35.605356, 140.078467], # BONDO (FAF)
                 [35.567152, 139.776839]  # THR
             ],
-            # RWY 22 (ILS - 視界不良時など): STEAM -> NEXUS -> NITRO
-            # ※ILSモード時に使用するためキーを分けるか、ILS描画ロジックで対応
-            # ここでは便宜上 ILS_APP として登録
+            # RWY 22 (ILS - 視界不良時): STEAM -> NINJA -> NIFTY -> NEXUS -> NITRO
             "RWY 22_ILS_APP": [
                 [35.931472, 139.952333], # STEAM (IAF)
+                [35.863389, 139.982194], # NINJA
+                [35.831056, 140.065500], # NIFTY
                 [35.796917, 139.974833], # NEXUS (IF)
                 [35.769639, 139.951242], # NITRO (FAF)
                 [35.567152, 139.776839]  # THR
             ],
 
-            # RWY 23 (ILS Y): KAIHO -> LUBBY -> GUMIK
+            # 6. RWY 23 (ILS Y / LOC Y): KAIHO -> LUBBY -> GUMIK
             "RWY 23_APP": [
-                [35.316056, 139.778444], # KAIHO (IAF)
+                [35.316064, 139.778453], # KAIHO (IAF)
                 [35.616028, 139.912528], # LUBBY (IF)
                 [35.592139, 139.883650], # GUMIK (FAF)
                 [35.540330, 139.821781]  # THR
             ],
             # RWY 23 (LDA X): BACON -> DOYLE -> DAMBO
-            # 23へのLDA進入用
             "RWY 23_LDA_APP": [
                 [35.531944, 140.204194], # BACON
                 [35.571444, 140.119583], # DOYLE (IF)
                 [35.571253, 140.078714], # DAMBO (FAF)
+                [35.540330, 139.821781]  # THR
+            ],
+            # RWY 23 (ILS Z): NYLON -> SMILE -> SAROB
+            "RWY 23_ILS_Z_APP": [
+                [35.671806, 140.155528], # NYLON (IAF)
+                [35.743444, 140.066917], # SMILE (IF)
+                [35.681403, 139.991653], # SAROB (FAF)
+                [35.540330, 139.821781]  # THR
+            ],
+            # RWY 23 (LDA Y): KAIHO -> DARKS -> DOMEL
+            "RWY 23_LDA_Y_APP": [
+                [35.316064, 139.778453], # KAIHO (IAF)
+                [35.570778, 139.984139], # DARKS (IF)
+                [35.570561, 139.943094], # DOMEL (FAF)
                 [35.540330, 139.821781]  # THR
             ],
 
@@ -260,7 +293,7 @@ if data and metar:
         else:
             if is_city:
                 active_landing = ["RWY 16L", "RWY 16R"]
-                active_takeoff = ["RWY 16L", "RWY 16R"]
+                active_takeoff = ["RWY 16L", "RWY 16R", "RWY 22"]
             else:
                 active_landing = ["RWY 22", "RWY 23"]
                 active_takeoff = ["RWY 16L", "RWY 16R"]
@@ -279,6 +312,7 @@ if data and metar:
             col, wgt, op = "#00ff00", 6, 0.9
             base_rwy_name = name[:7].strip()
             desc_app_text = rwy.get("desc_app", "")
+            desc_dep_text = rwy.get("desc_dep", "")
 
             if is_land:
                 tooltip_text = f"{name} Approach"
@@ -286,16 +320,18 @@ if data and metar:
 
                 app_key = f"{base_rwy_name}_APP"
                 
-                # RWY 22の場合、視程不良時はILSルート(RWY 22_ILS_APP)に切り替える特別ロジック
+                # 特殊な視程/運用条件でのルート切り替え
                 if base_rwy_name == "RWY 22" and not is_good_vis:
                     app_key = "RWY 22_ILS_APP"
+                elif base_rwy_name == "RWY 34R" and is_good_vis:
+                    # 34RもILS Zが基本だが、GLSやVisualの可能性もあり。ここではILS Zをメインに使用。
+                    # 必要であれば "RWY 34R_GLS_APP" に切り替えるロジックを追加可能
+                    pass 
+                elif base_rwy_name == "RWY 23" and not is_good_vis:
+                    # 視程不良時はILS Zを使用
+                    app_key = "RWY 23_ILS_Z_APP"
                 
                 use_custom_curve = (app_key in custom_routes)
-                # 注: 視程が良いときはカスタムルート(LDA等)、悪いときはILS直線...だが
-                # ここでは正確なILSルート座標も custom_routes に入れたため、
-                # is_good_vis のフラグでキーを切り替える方式にしても良い。
-                # 今回は単純に「キーがあればそれを使う」とし、ILSルートが必要な場合は
-                # 上記のようにキー名をスイッチさせる。
 
                 if use_custom_curve:
                     coords = custom_routes[app_key]
@@ -305,7 +341,6 @@ if data and metar:
                     rot = rwy["hdg"] - 90
                     folium.Marker(icon_loc, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color=route_color, text_color=route_color, rotation=rot), tooltip=desc_app_text).add_to(m)
                 else:
-                    # 定義がない場合(またはILS座標未定義)は直線を引く
                     app_hdg = rwy["hdg"] + 180
                     fp = get_dist_point(rwy["thr"], app_hdg, 12.0)
                     folium.PolyLine([rwy["thr"], fp], color="cyan", weight=3, dash_array='5,5', opacity=0.8, tooltip=f"{tooltip_text} [ILS]").add_to(m)
@@ -314,23 +349,28 @@ if data and metar:
                     folium.Marker(ip, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="cyan", text_color="cyan", rotation=rot), tooltip=desc_app_text).add_to(m)
 
             if is_dep:
+                tooltip_text = f"{name} Departure"
+                if desc_dep_text: tooltip_text += f" ({desc_dep_text})"
+                
                 dep_key = f"{base_rwy_name}_DEP"
                 if dep_key in custom_routes:
                     coords = custom_routes[dep_key]
-                    folium.PolyLine(coords, color="orange", weight=3, opacity=0.8, tooltip=f"{name} Departure").add_to(m)
+                    folium.PolyLine(coords, color="orange", weight=3, opacity=0.8, tooltip=tooltip_text).add_to(m)
                     icon_loc = coords[-1]
                     rot = rwy["hdg"] - 90
-                    folium.Marker(icon_loc, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="orange", text_color="orange", rotation=rot)).add_to(m)
+                    folium.Marker(icon_loc, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="orange", text_color="orange", rotation=rot), tooltip=desc_dep_text).add_to(m)
                 else:
                     dep_pt = get_dist_point(rwy["dep_end"], rwy["hdg"], 10.0)
-                    folium.PolyLine([rwy["dep_end"], dep_pt], color="orange", weight=3, opacity=0.8, tooltip=f"{name} Departure").add_to(m)
+                    folium.PolyLine([rwy["dep_end"], dep_pt], color="orange", weight=3, opacity=0.8, tooltip=tooltip_text).add_to(m)
                     dp_icon = get_dist_point(rwy["dep_end"], rwy["hdg"], 0.5)
                     rot = rwy["hdg"] - 90
-                    folium.Marker(dp_icon, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="orange", text_color="orange", rotation=rot)).add_to(m)
+                    folium.Marker(dp_icon, icon=BeautifyIcon(icon="plane", icon_shape="marker", border_color="orange", text_color="orange", rotation=rot), tooltip=desc_dep_text).add_to(m)
 
         desc_info = ""
         if "desc_app" in rwy:
-            desc_info = f"<br>情報: {rwy['desc_app']}"
+            desc_info += f"<br>着陸: {rwy['desc_app']}"
+        if "desc_dep" in rwy:
+            desc_info += f"<br>離陸: {rwy['desc_dep']}"
             
         pop = f"<b>{name}</b><br>{'Active' if is_land or is_dep else 'Standby'}{desc_info}<br>Head:{hw:.1f}kt / Cross:{abs(cw):.1f}kt<br><hr>{get_judgment(cw)}"
         folium.PolyLine(rwy["coords"], color=col, weight=wgt, opacity=op, popup=folium.Popup(pop, max_width=250)).add_to(m)
