@@ -132,8 +132,6 @@ airports_db = {
             # 2. RWY 16R (ILS/LOC): SANDY -> LORRY -> LYCOS -> RWY 16R
             "RWY 16R_APP": [
                 [35.821528, 139.734111], # SANDY
-                [35.821417, 139.684944], # LABAN
-                [35.821278, 139.635000], # LINEN
                 [35.778472, 139.635194], # LORRY (IF)
                 [35.735175, 139.666086], # LYCOS (FAF)
                 [35.555724, 139.772081]  # THR
@@ -180,6 +178,7 @@ airports_db = {
                 [35.567152, 139.776839]  # THR
             ],
             # RWY 22 (ILS - 視界不良時): STEAM -> NINJA -> NIFTY -> NEXUS -> NITRO
+            # ※ILSモード時に使用するルート。視程が良いときはLDA Z、悪いときはILS Zを使用。
             "RWY 22_ILS_APP": [
                 [35.931472, 139.952333], # STEAM (IAF)
                 [35.863389, 139.982194], # NINJA
@@ -204,6 +203,7 @@ airports_db = {
                 [35.540330, 139.821781]  # THR
             ],
             # RWY 23 (ILS Z): NYLON -> SMILE -> SAROB
+            # ※視界不良時などはこちらを使用するロジックにする
             "RWY 23_ILS_Z_APP": [
                 [35.671806, 140.155528], # NYLON (IAF)
                 [35.743444, 140.066917], # SMILE (IF)
@@ -211,6 +211,7 @@ airports_db = {
                 [35.540330, 139.821781]  # THR
             ],
             # RWY 23 (LDA Y): KAIHO -> DARKS -> DOMEL
+            # こちらも使用される可能性があるルート。
             "RWY 23_LDA_Y_APP": [
                 [35.316064, 139.778453], # KAIHO (IAF)
                 [35.570778, 139.984139], # DARKS (IF)
